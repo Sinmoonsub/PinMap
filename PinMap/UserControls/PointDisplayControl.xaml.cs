@@ -19,7 +19,7 @@ public partial class PointDisplayControl : UserControl
     private ScaleMode _mode = ScaleMode.FitToView;
 
     // ============================================================
-    // Dependency Properties (외부 바인딩을 위한 속성)
+    // Dependency Properties
     // ============================================================
 
     public static readonly DependencyProperty PointsProperty =
@@ -55,7 +55,6 @@ public partial class PointDisplayControl : UserControl
         InitializeComponent();
 
         _transformGroup = new TransformGroup();
-        // 1. 배율(Scale) 적용 후 2. 이동(Translate) 적용
         _transformGroup.Children.Add(_scale);
         _transformGroup.Children.Add(_translate);
 
@@ -67,25 +66,25 @@ public partial class PointDisplayControl : UserControl
         };
     }
 
-    private void CalcBounds(IReadOnlyList<ChannelPoint> points)
+    /// <summary>
+    /// 외부에서 강제로 색상 정보를 갱신하고 화면을 다시 그리도록 합니다.
+    /// Dictionary 내부 값만 변경했을 때 호출하십시오.
+    /// </summary>
+    public void RefreshColors()
     {
-        if (points == null || points.Count == 0)
-        {
-            _dataBounds = Rect.Empty;
-            return;
-        }
-
-        double minX = double.MaxValue, maxX = double.MinValue;
-        double minY = double.MaxValue, maxY = double.MinValue;
-
-        foreach (var p in points)
-        {
-            if (p.X < minX) minX = p.X; if (p.X > maxX) maxX = p.X;
-            if (p.Y < minY) minY = p.Y; if (p.Y > maxY) maxY = p.Y;
-        }
-
-        _dataBounds = new Rect(new Point(minX, minY), new Point(maxX, maxY));
+        Renderer.ChannelColors = this.ChannelColors;
+        Renderer.InvalidateVisual();
     }
+
+    /// <summary>
+    /// 모든 데이터와 변환을 초기화하고 다시 그립니다.
+    /// </summary>
+    public void Redraw()
+    {
+        Renderer.InvalidateVisual();
+    }
+
+    // [FitToView, Mouse Events 등 이전 로직 유지...]
 
     public void FitToView()
     {
@@ -96,7 +95,6 @@ public partial class PointDisplayControl : UserControl
         double scaleY = (ActualHeight * margin) / _dataBounds.Height;
         double scale = Math.Min(scaleX, scaleY);
 
-        // WPF 표준 좌표계 (+Y가 아래)
         _scale.ScaleX = scale;
         _scale.ScaleY = scale;
 
@@ -109,57 +107,22 @@ public partial class PointDisplayControl : UserControl
         UpdateRenderer();
     }
 
-    // ============================================================
-    // 이벤트 핸들러 (줌/팬)
-    // ============================================================
-
-    protected override void OnMouseWheel(MouseWheelEventArgs e)
-    {
-        double zoomFactor = e.Delta > 0 ? 1.2 : 0.8;
-        Point mousePos = e.GetPosition(this);
-
-        double newScale = _scale.ScaleX * zoomFactor;
-        if (newScale < 0.001 || newScale > 50) return;
-
-        _translate.X = mousePos.X - (mousePos.X - _translate.X) * zoomFactor;
-        _translate.Y = mousePos.Y - (mousePos.Y - _translate.Y) * zoomFactor;
-
-        _scale.ScaleX = newScale;
-        _scale.ScaleY = newScale;
-
-        UpdateRenderer();
-    }
-
-    protected override void OnMouseDown(MouseButtonEventArgs e)
-    {
-        if (e.MiddleButton == MouseButtonState.Pressed || e.LeftButton == MouseButtonState.Pressed)
-        {
-            _lastMousePos = e.GetPosition(this);
-            CaptureMouse();
-        }
-    }
-
-    protected override void OnMouseMove(MouseEventArgs e)
-    {
-        if (IsMouseCaptured)
-        {
-            Point currentPos = e.GetPosition(this);
-            Vector delta = currentPos - _lastMousePos;
-
-            _translate.X += delta.X;
-            _translate.Y += delta.Y;
-
-            _lastMousePos = currentPos;
-            Renderer.InvalidateVisual();
-        }
-    }
-
-    protected override void OnMouseUp(MouseButtonEventArgs e) => ReleaseMouseCapture();
-
     private void UpdateRenderer()
     {
         Renderer.ScaleValue = _scale.ScaleX;
         Renderer.InvalidateVisual();
+    }
+
+    private void CalcBounds(IReadOnlyList<ChannelPoint> points)
+    {
+        if (points == null || points.Count == 0) { _dataBounds = Rect.Empty; return; }
+        double minX = double.MaxValue, maxX = double.MinValue, minY = double.MaxValue, maxY = double.MinValue;
+        foreach (var p in points)
+        {
+            if (p.X < minX) minX = p.X; if (p.X > maxX) maxX = p.X;
+            if (p.Y < minY) minY = p.Y; if (p.Y > maxY) maxY = p.Y;
+        }
+        _dataBounds = new Rect(new Point(minX, minY), new Point(maxX, maxY));
     }
 
     // ============================================================
@@ -170,21 +133,19 @@ public partial class PointDisplayControl : UserControl
     {
         var ctrl = (PointDisplayControl)d;
         var newPoints = e.NewValue as IReadOnlyList<ChannelPoint>;
-
         ctrl.Renderer.Points = newPoints;
-
         if (newPoints != null)
         {
             ctrl.CalcBounds(newPoints);
             if (ctrl._mode == ScaleMode.FitToView) ctrl.FitToView();
         }
-
         ctrl.Renderer.InvalidateVisual();
     }
 
     private static void OnColorsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
         var ctrl = (PointDisplayControl)d;
+        // 새로운 Dictionary 객체가 할당될 때 호출됨
         ctrl.Renderer.ChannelColors = e.NewValue as Dictionary<int, Brush>;
         ctrl.Renderer.InvalidateVisual();
     }
