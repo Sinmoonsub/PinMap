@@ -1,30 +1,15 @@
-﻿using System.Text;
-using System.Windows;
-using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
-using PinMap.ViewModels;
+﻿using System.Windows;
+using PinMap.Models;
+using PinMap.UserControls;
 
-namespace PinMap
+namespace PinMap;
+
+public partial class MainWindow : Window
 {
-    /// <summary>
-    /// Interaction logic for MainWindow.xaml
-    /// </summary>
-    public partial class MainWindow : Window
+    public MainWindow()
     {
-        public MainWindow()
-        {
-            InitializeComponent();
-        }
-        // App.xaml.cs에서 DataContext 설정 후 호출
-        public void RegisterViewModel(MainViewModel vm)
-        {
-            vm.RegisterMapControl(MapControl);
-        }
+        InitializeComponent();
+
+
     }
 }

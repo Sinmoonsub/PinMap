@@ -1,81 +1,103 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using PinMap.Models;
-using PinMap.UserControls;
+using System.IO;
+using PinMap.Utils;
+using CommunityToolkit.Mvvm.Input;
 
-namespace PinMap.ViewModels
+
+
+namespace PinMap.ViewModels;
+
+public partial class MainViewModel : ObservableObject
 {
-    public partial class MainViewModel : ObservableObject, IDisposable
+    [ObservableProperty]
+    private IReadOnlyList<ChannelPoint> _points;
+
+    [ObservableProperty]
+    private Dictionary<int, Brush> channelColors = new()
+        {
+            {1, Brushes.Red},
+            {2, Brushes.Blue},
+            {3, Brushes.Green},
+            {4, Brushes.Orange}
+        };
+
+    private readonly PointDataLoader _dataLoader;
+
+    public MainViewModel()
     {
-        private IPointDisplayControl _mapControl;
 
-        [ObservableProperty]
-        private IEnumerable<ChannelPoint> _myPoints;
+        _dataLoader = new PointDataLoader();
 
-        [ObservableProperty]
-        private Dictionary<int, Brush> _myColors;
 
-        [ObservableProperty]
-        private string _statusText;
 
-        public MainViewModel()
+        // 데이터 처리 엔진을 통해 파일을 로드하고 Points 컬렉션에 대입합니다.
+        // 파일 경로 "TextFile.txt"는 실행 파일 위치 기준입니다.
+        Points = _dataLoader.LoadPointsFromFile("TextFile.txt");
+    }
+
+    [RelayCommand]
+    private void Test()
+    {
+        channelColors = new()
         {
-            MyColors = new Dictionary<int, Brush>
-            {
-                { 1, Brushes.Red    },
-                { 2, Brushes.Blue   },
-                { 3, Brushes.Green  },
-                { 4, Brushes.Orange },
-            };
+            {1, Brushes.Red},
+            {2, Brushes.Blue},
+            {3, Brushes.Green},
+            {4, Brushes.Orange},
+            {5, Brushes.Orange},
+            {6, Brushes.Orange},
+            {7, Brushes.Orange}
+        };
+    }
+
+    /*
+    /// <summary>
+    /// 비즈니스 로직: 파일로부터 데이터를 읽어 ChannelPoint 리스트로 변환합니다.
+    /// </summary>
+    private IReadOnlyList<ChannelPoint> LoadPointsFromFile(string filePath)
+    {
+        if (!File.Exists(filePath))
+        {
+            // 실제 환경에서는 사용자에게 알림을 띄우거나 로그를 남깁니다.
+            return new List<ChannelPoint>().AsReadOnly();
         }
 
-        public void RegisterMapControl(IPointDisplayControl control)
+        try
         {
-            _mapControl = control;
-        }
+            var list = new List<ChannelPoint>();
 
-        [RelayCommand]
-        private void LoadData()
-        {
-            var random = new Random();
-            var points = new List<ChannelPoint>();
-
-            for (int ch = 1; ch <= 4; ch++)
+            // 성능 최적화: 전체 파일을 메모리에 로드하지 않고 한 줄씩 읽기
+            foreach (var line in File.ReadLines(filePath))
             {
-                for (int i = 0; i < 2500; i++)
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                // 파싱 로직
+                var parts = line.Split(new[] { '\t', ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length < 3) continue;
+
+                // 'Z01' -> 1 변환
+                string channelStr = parts[0].TrimStart('Z', 'z');
+
+                if (int.TryParse(channelStr, out int ch) &&
+                    double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out double x) &&
+                    double.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out double y))
                 {
-                    points.Add(new ChannelPoint
-                    {
-                        X = random.NextDouble() * 1000,
-                        Y = random.NextDouble() * 1000,
-                        Channel = ch
-                    });
+                    list.Add(new ChannelPoint(ch, x, -y));
                 }
             }
 
-            MyPoints = points;
-            StatusText = $"총 {points.Count}개 포인트 로드 완료";
+            return list.AsReadOnly();
         }
-
-        [RelayCommand]
-        private void ResetView()
+        catch (Exception)
         {
-            _mapControl?.ResetView();
-        }
-
-        [RelayCommand]
-        private void ClearData()
-        {
-            MyPoints = null;
-            StatusText = "데이터 초기화 완료";
-        }
-
-        public void Dispose()
-        {
-            MyPoints = null;
-            _mapControl = null;
+            // 예외 발생 시 빈 리스트 반환 (안전성 확보)
+            return new List<ChannelPoint>().AsReadOnly();
         }
     }
+    */
+
 }

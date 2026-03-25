@@ -1,209 +1,191 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using PinMap;
 using PinMap.Models;
 
-namespace PinMap.UserControls
+namespace PinMap.UserControls;
+
+public partial class PointDisplayControl : UserControl
 {
-    public partial class PointDisplayControl : UserControl, IPointDisplayControl
+    private ScaleTransform _scale = new ScaleTransform(1, 1);
+    private TranslateTransform _translate = new TranslateTransform();
+    private TransformGroup _transformGroup;
+
+    private Point _lastMousePos;
+    private Rect _dataBounds = Rect.Empty;
+    private ScaleMode _mode = ScaleMode.FitToView;
+
+    // ============================================================
+    // Dependency Properties (외부 바인딩을 위한 속성)
+    // ============================================================
+
+    public static readonly DependencyProperty PointsProperty =
+        DependencyProperty.Register(nameof(Points),
+            typeof(IReadOnlyList<ChannelPoint>),
+            typeof(PointDisplayControl),
+            new PropertyMetadata(null, OnPointsChanged));
+
+    public IReadOnlyList<ChannelPoint> Points
     {
-        // 변환 상태
-        private double _zoom = 1.0;
-        private Vector _offset = new(0, 0);
-        private Point _lastMousePos;
-        private bool _isPanning;
+        get => (IReadOnlyList<ChannelPoint>)GetValue(PointsProperty);
+        set => SetValue(PointsProperty, value);
+    }
 
-        // 데이터 바운더리
-        private Rect _dataBounds;
-        private double _baseScale = 1.0;
+    public static readonly DependencyProperty ChannelColorsProperty =
+        DependencyProperty.Register(nameof(ChannelColors),
+            typeof(Dictionary<int, Brush>),
+            typeof(PointDisplayControl),
+            new PropertyMetadata(null, OnColorsChanged));
 
-        public PointDisplayControl()
+    public Dictionary<int, Brush> ChannelColors
+    {
+        get => (Dictionary<int, Brush>)GetValue(ChannelColorsProperty);
+        set => SetValue(ChannelColorsProperty, value);
+    }
+
+    // ============================================================
+    // 생성자 및 초기화
+    // ============================================================
+
+    public PointDisplayControl()
+    {
+        InitializeComponent();
+
+        _transformGroup = new TransformGroup();
+        // 1. 배율(Scale) 적용 후 2. 이동(Translate) 적용
+        _transformGroup.Children.Add(_scale);
+        _transformGroup.Children.Add(_translate);
+
+        Renderer.RenderTransformValue = _transformGroup;
+
+        SizeChanged += (s, e) =>
         {
-            InitializeComponent();
+            if (_mode == ScaleMode.FitToView) FitToView();
+        };
+    }
 
-            this.SizeChanged += (s, e) => InvalidateVisual();
-            this.MouseWheel += OnMouseWheel;
-            this.MouseDown += OnMouseDown;
-            this.MouseMove += OnMouseMove;
-            this.MouseUp += OnMouseUp;
-
-            this.Focusable = true;
-            this.MouseEnter += (s, e) => this.Focus();
+    private void CalcBounds(IReadOnlyList<ChannelPoint> points)
+    {
+        if (points == null || points.Count == 0)
+        {
+            _dataBounds = Rect.Empty;
+            return;
         }
 
-        #region Dependency Properties
+        double minX = double.MaxValue, maxX = double.MinValue;
+        double minY = double.MaxValue, maxY = double.MinValue;
 
-        public static readonly DependencyProperty PointsProperty =
-            DependencyProperty.Register(nameof(Points), typeof(IEnumerable<ChannelPoint>),
-                typeof(PointDisplayControl), new FrameworkPropertyMetadata(null,
-                    FrameworkPropertyMetadataOptions.AffectsRender, // ★ 변경 시 자동 렌더
-                    OnPointsChanged));
-
-        public IEnumerable<ChannelPoint> Points
+        foreach (var p in points)
         {
-            get => (IEnumerable<ChannelPoint>)GetValue(PointsProperty);
-            set => SetValue(PointsProperty, value);
+            if (p.X < minX) minX = p.X; if (p.X > maxX) maxX = p.X;
+            if (p.Y < minY) minY = p.Y; if (p.Y > maxY) maxY = p.Y;
         }
 
-        public static readonly DependencyProperty ChannelColorsProperty =
-            DependencyProperty.Register(nameof(ChannelColors), typeof(Dictionary<int, Brush>),
-                typeof(PointDisplayControl), new FrameworkPropertyMetadata(null,
-                    FrameworkPropertyMetadataOptions.AffectsRender)); // ★ 변경 시 자동 렌더
+        _dataBounds = new Rect(new Point(minX, minY), new Point(maxX, maxY));
+    }
 
-        public Dictionary<int, Brush> ChannelColors
+    public void FitToView()
+    {
+        if (_dataBounds.IsEmpty || ActualWidth == 0 || ActualHeight == 0) return;
+
+        double margin = 0.9;
+        double scaleX = (ActualWidth * margin) / _dataBounds.Width;
+        double scaleY = (ActualHeight * margin) / _dataBounds.Height;
+        double scale = Math.Min(scaleX, scaleY);
+
+        // WPF 표준 좌표계 (+Y가 아래)
+        _scale.ScaleX = scale;
+        _scale.ScaleY = scale;
+
+        double dataCenterX = (_dataBounds.Left + _dataBounds.Right) / 2.0;
+        double dataCenterY = (_dataBounds.Top + _dataBounds.Bottom) / 2.0;
+
+        _translate.X = (ActualWidth / 2.0) - (dataCenterX * scale);
+        _translate.Y = (ActualHeight / 2.0) - (dataCenterY * scale);
+
+        UpdateRenderer();
+    }
+
+    // ============================================================
+    // 이벤트 핸들러 (줌/팬)
+    // ============================================================
+
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        double zoomFactor = e.Delta > 0 ? 1.2 : 0.8;
+        Point mousePos = e.GetPosition(this);
+
+        double newScale = _scale.ScaleX * zoomFactor;
+        if (newScale < 0.001 || newScale > 50) return;
+
+        _translate.X = mousePos.X - (mousePos.X - _translate.X) * zoomFactor;
+        _translate.Y = mousePos.Y - (mousePos.Y - _translate.Y) * zoomFactor;
+
+        _scale.ScaleX = newScale;
+        _scale.ScaleY = newScale;
+
+        UpdateRenderer();
+    }
+
+    protected override void OnMouseDown(MouseButtonEventArgs e)
+    {
+        if (e.MiddleButton == MouseButtonState.Pressed || e.LeftButton == MouseButtonState.Pressed)
         {
-            get => (Dictionary<int, Brush>)GetValue(ChannelColorsProperty);
-            set => SetValue(ChannelColorsProperty, value);
+            _lastMousePos = e.GetPosition(this);
+            CaptureMouse();
+        }
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        if (IsMouseCaptured)
+        {
+            Point currentPos = e.GetPosition(this);
+            Vector delta = currentPos - _lastMousePos;
+
+            _translate.X += delta.X;
+            _translate.Y += delta.Y;
+
+            _lastMousePos = currentPos;
+            Renderer.InvalidateVisual();
+        }
+    }
+
+    protected override void OnMouseUp(MouseButtonEventArgs e) => ReleaseMouseCapture();
+
+    private void UpdateRenderer()
+    {
+        Renderer.ScaleValue = _scale.ScaleX;
+        Renderer.InvalidateVisual();
+    }
+
+    // ============================================================
+    // 속성 변경 알림 처리
+    // ============================================================
+
+    private static void OnPointsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var ctrl = (PointDisplayControl)d;
+        var newPoints = e.NewValue as IReadOnlyList<ChannelPoint>;
+
+        ctrl.Renderer.Points = newPoints;
+
+        if (newPoints != null)
+        {
+            ctrl.CalcBounds(newPoints);
+            if (ctrl._mode == ScaleMode.FitToView) ctrl.FitToView();
         }
 
-        private static void OnPointsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        {
-            var ctrl = (PointDisplayControl)d;
-            ctrl.CalculateDataBounds();
-            ctrl.ResetView();
-        }
+        ctrl.Renderer.InvalidateVisual();
+    }
 
-        #endregion
-
-        #region Data Bounds
-
-        private void CalculateDataBounds()
-        {
-            if (Points == null || !Points.Any()) return;
-
-            double minX = double.MaxValue, maxX = double.MinValue;
-            double minY = double.MaxValue, maxY = double.MinValue;
-
-            foreach (var p in Points)
-            {
-                if (p.X < minX) minX = p.X;
-                if (p.X > maxX) maxX = p.X;
-                if (p.Y < minY) minY = p.Y;
-                if (p.Y > maxY) maxY = p.Y;
-            }
-
-            _dataBounds = new Rect(
-                minX, minY,
-                Math.Max(0.0001, maxX - minX),
-                Math.Max(0.0001, maxY - minY)
-            );
-
-            System.Diagnostics.Debug.WriteLine($"[Bounds] {_dataBounds}");
-        }
-
-        public void ResetView()
-        {
-            _zoom = 1.0;
-            _offset = new Vector(0, 0);
-            InvalidateVisual(); // ★ DrawingVisual 대신 WPF 기본 렌더 호출
-        }
-
-        #endregion
-
-        #region OnRender (DrawingVisual 대신 WPF 기본 방식)
-
-        protected override void OnRender(DrawingContext dc)
-        {
-            base.OnRender(dc);
-
-            // 배경
-            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, ActualWidth, ActualHeight));
-
-            if (Points == null || !Points.Any())
-            {
-                System.Diagnostics.Debug.WriteLine("[OnRender] Points 없음");
-                return;
-            }
-
-            if (ActualWidth == 0 || ActualHeight == 0)
-            {
-                System.Diagnostics.Debug.WriteLine("[OnRender] 크기 없음");
-                return;
-            }
-
-            if (_dataBounds.IsEmpty || _dataBounds.Width == 0)
-                CalculateDataBounds();
-
-            double margin = 0.05;
-            double innerWidth = ActualWidth * (1 - margin * 2);
-            double innerHeight = ActualHeight * (1 - margin * 2);
-            _baseScale = Math.Min(innerWidth / _dataBounds.Width, innerHeight / _dataBounds.Height);
-
-            double marginLeft = ActualWidth * margin;
-            double marginTop = ActualHeight * margin;
-
-            int drawCount = 0;
-
-            foreach (var p in Points)
-            {
-                if (ChannelColors == null || !ChannelColors.TryGetValue(p.Channel, out Brush brush))
-                    brush = Brushes.Gray;
-
-                double bx = (p.X - _dataBounds.Left) * _baseScale + marginLeft;
-                double by = (p.Y - _dataBounds.Top) * _baseScale + marginTop;
-
-                double sx = bx * _zoom + _offset.X;
-                double sy = by * _zoom + _offset.Y;
-
-                if (sx < -5 || sx > ActualWidth + 5 || sy < -5 || sy > ActualHeight + 5) continue;
-
-                dc.DrawEllipse(brush, null, new Point(sx, sy), 2, 2);
-                drawCount++;
-            }
-
-            System.Diagnostics.Debug.WriteLine($"[OnRender] 그려진 점: {drawCount}개 / 전체: {Points.Count()}개");
-        }
-
-        #endregion
-
-        #region Mouse Interactions
-
-        private void OnMouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            double zoomFactor = e.Delta > 0 ? 1.1 : 1.0 / 1.1;
-            Point mousePos = e.GetPosition(this);
-
-            _offset = (Vector)mousePos - ((Vector)mousePos - _offset) * zoomFactor;
-            _zoom *= zoomFactor;
-            _zoom = Math.Clamp(_zoom, 0.05, 200.0);
-
-            InvalidateVisual();
-            e.Handled = true;
-        }
-
-        private void OnMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            if (e.ChangedButton == MouseButton.Left || e.ChangedButton == MouseButton.Middle)
-            {
-                _isPanning = true;
-                _lastMousePos = e.GetPosition(this);
-                this.CaptureMouse();
-            }
-        }
-
-        private void OnMouseMove(object sender, MouseEventArgs e)
-        {
-            if (_isPanning)
-            {
-                Point currentPos = e.GetPosition(this);
-                Vector delta = currentPos - _lastMousePos;
-                _offset += delta;
-                _lastMousePos = currentPos;
-                InvalidateVisual();
-            }
-        }
-
-        private void OnMouseUp(object sender, MouseButtonEventArgs e)
-        {
-            _isPanning = false;
-            this.ReleaseMouseCapture();
-        }
-
-        #endregion
+    private static void OnColorsChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var ctrl = (PointDisplayControl)d;
+        ctrl.Renderer.ChannelColors = e.NewValue as Dictionary<int, Brush>;
+        ctrl.Renderer.InvalidateVisual();
     }
 }

@@ -1,15 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿namespace PinMap.Models;
 
-namespace PinMap.Models
+public struct ChannelPoint
 {
-    public class ChannelPoint
+    public int Channel { get; }
+    public double X { get; }
+    public double Y { get; }
+
+    public ChannelPoint(int channel, double x, double y)
     {
-        public double X { get; set; }
-        public double Y { get; set; }
-        public int Channel { get; set; }
+        Channel = channel;
+        X = x;
+        Y = y;
     }
 }
