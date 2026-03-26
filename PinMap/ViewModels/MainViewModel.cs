@@ -6,6 +6,7 @@ using PinMap.Models;
 using System.IO;
 using PinMap.Utils;
 using CommunityToolkit.Mvvm.Input;
+using System.Windows;
 
 
 
@@ -36,7 +37,7 @@ public partial class MainViewModel : ObservableObject
 
         // 데이터 처리 엔진을 통해 파일을 로드하고 Points 컬렉션에 대입합니다.
         // 파일 경로 "TextFile.txt"는 실행 파일 위치 기준입니다.
-        Points = _dataLoader.LoadPointsFromFile("TextFile.txt");
+        Points = _dataLoader.LoadPointsFromFile("Points_50k.txt");
     }
 
     [RelayCommand]
@@ -45,3 +46,4 @@ public partial class MainViewModel : ObservableObject
         ChannelColors = ColorGenerator.GenerateRandomColors();
     }
 }
+
