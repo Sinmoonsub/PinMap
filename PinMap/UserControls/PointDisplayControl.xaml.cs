@@ -64,6 +64,62 @@ public partial class PointDisplayControl : UserControl
         {
             if (_mode == ScaleMode.FitToView) FitToView();
         };
+
+        MouseWheel += PointDisplayControl_MouseWheel;
+        MouseDoubleClick += PointDisplayControl_MouseDoubleClick;
+    }
+
+    private void PointDisplayControl_MouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        _mode = ScaleMode.Manual; // 휠 사용 시 FitToView 모드 해제
+
+        double zoomFactor = e.Delta > 0 ? 1.1 : 0.9; // 위로 스크롤: 확대, 아래: 축소
+
+        // 화면 중심을 기준으로 줌
+        Point screenCenter = new Point(ActualWidth / 2.0, ActualHeight / 2.0);
+
+        // 변환 이전의 데이터 좌표 계산
+        Point dataCenterPoint = InverseTransformPoint(screenCenter);
+
+        // 스케일 적용
+        double newScaleX = _scale.ScaleX * zoomFactor;
+        double newScaleY = _scale.ScaleY * zoomFactor;
+
+        // 최소/최대 줌 레벨 제한 (선택사항)
+        const double minZoom = 0.1;
+        const double maxZoom = 10.0;
+        newScaleX = Math.Clamp(newScaleX, minZoom, maxZoom);
+        newScaleY = Math.Clamp(newScaleY, minZoom, maxZoom);
+
+        _scale.ScaleX = newScaleX;
+        _scale.ScaleY = newScaleY;
+
+        // 화면 중심이 같은 데이터 좌표에 유지되도록 트랜슬레이션 조정
+        Point newScreenCenterDataPoint = InverseTransformPoint(screenCenter);
+        _translate.X += (dataCenterPoint.X - newScreenCenterDataPoint.X) * newScaleX;
+        _translate.Y += (dataCenterPoint.Y - newScreenCenterDataPoint.Y) * newScaleY;
+
+        UpdateRenderer();
+        e.Handled = true;
+    }
+
+    private void PointDisplayControl_MouseDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        // 마우스 우클릭 더블클릭 감지
+        if (e.ChangedButton == MouseButton.Right)
+        {
+            _mode = ScaleMode.FitToView;
+            FitToView();
+            e.Handled = true;
+        }
+    }
+
+    private Point InverseTransformPoint(Point screenPoint)
+    {
+        // 스크린 좌표를 데이터 좌표로 변환
+        double dataX = (screenPoint.X - _translate.X) / _scale.ScaleX;
+        double dataY = (screenPoint.Y - _translate.Y) / _scale.ScaleY;
+        return new Point(dataX, dataY);
     }
 
     /// <summary>

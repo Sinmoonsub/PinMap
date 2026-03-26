@@ -27,6 +27,8 @@ public class RenderElement : FrameworkElement
     {
         if (Points == null) return;
 
+        // 배경을 투명하게 (배경색 칠하지 않음)
+
         // 전체 변환 적용
         dc.PushTransform(RenderTransformValue ?? Transform.Identity);
 
@@ -34,7 +36,7 @@ public class RenderElement : FrameworkElement
         // dc.DrawEllipse(Brushes.Yellow, null, new Point(0, 0), 2/ScaleValue, 2/ScaleValue);
 
         double radius = UseDynamicPointSize
-            ? Math.Max(1.0 / ScaleValue, 0.1)
+            ? Math.Max(ScaleValue * 0.03, 0.3)  // 줌 아웃(축소)할 때 점이 커짐, 줌 인(확대)할 때 작아짐
             : 1.0;
 
         // 성능을 위해 Pen은 null로 설정 (외곽선 없음)
@@ -51,7 +53,8 @@ public class RenderElement : FrameworkElement
                 }
                 else
                 {
-                    brush = Brushes.White;
+                    // 기본색을 검정색으로 변경
+                    brush = Brushes.Black;
                 }
                 brushCache[p.Channel] = brush;
             }

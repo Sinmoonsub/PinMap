@@ -3,7 +3,7 @@
              xmlns:local="clr-namespace:PinMap.UserControls"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Grid Background="Black">
+    <Grid Background="Transparent">
         <local:RenderElement x:Name="Renderer"/>
     </Grid>
 

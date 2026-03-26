@@ -3,5 +3,6 @@
 public enum ScaleMode
 {
     FitToView,
-    RealScale
+    RealScale,
+    Manual
 }
