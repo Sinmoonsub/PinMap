@@ -3,7 +3,7 @@
         xmlns:local="clr-namespace:PinMap.UserControls"
         xmlns:vm="clr-namespace:PinMap.ViewModels"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PinMap" Height="1200" Width="1200">
+        Title="PinMap" Height="800" Width="800">
 
     <Window.DataContext>
         <vm:MainViewModel/>
@@ -12,23 +12,32 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="100"/>
-            <ColumnDefinition Width="1000"/>
+            <ColumnDefinition Width="600"/>
             <ColumnDefinition Width="100"/>
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="100"/>
-            <RowDefinition Height="1000"/>
+            <RowDefinition Height="600"/>
             <RowDefinition Height="100"/>
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0">
+        <Grid Grid.Row="0" >
             <Button Content="Test" Command="{Binding TestCommand}" Margin="20"/>
         </Grid>
-        
-        <Grid Grid.Column="1" Grid.Row="1">
+
+        <Grid Grid.Column="1" Grid.Row="1" Background="{Binding BC}">
+
             <local:PointDisplayControl
             Points="{Binding Points}"
             ChannelColors="{Binding ChannelColors}"/>
+        </Grid>
+
+        <Grid Grid.Row="0" Grid.Column="1">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="1" Command="{Binding C1Command}" Width="100" Height="30" Margin="20"></Button>
+                <Button Content="2" Command="{Binding C2Command}" Width="100" Height="30" Margin="20"></Button>
+                <Button Content="3" Command="{Binding C3Command}" Width="100" Height="30" Margin="20"></Button>
+            </StackPanel>
         </Grid>
 
         
